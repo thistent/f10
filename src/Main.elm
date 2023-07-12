@@ -37,6 +37,6 @@ main =
                 , Font.justify
                 , Font.color <| El.rgb 0.65 0.85 1.0
                 ]
-                [ El.text "[[ Links to all my Fund10 proposals will be here ]]"
+                [ El.text "[[ Links to all my Fund10 proposals will be here soon ]]"
                 ]
             ]
