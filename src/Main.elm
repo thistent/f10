@@ -32,11 +32,27 @@ main =
                 ]
               <|
                 El.text "Ken Stanton"
-            , El.paragraph
-                [ El.spacing 15
-                , Font.justify
-                , Font.color <| El.rgb 0.65 0.85 1.0
-                ]
-                [ El.text "[[ Links to all my Fund10 proposals will be here soon ]]"
-                ]
+            , el [ Font.bold ] <| El.text "Proposals:"
+            , ideaScaleLink 107701
+                "Dims: Distributed Innovation Management System"
+            , ideaScaleLink 106578
+                "Research: Strategically Competing with Mobile Money Markets in Africa"
+            , ideaScaleLink 105979
+                "Research: Real DAOs and Optimizing Governance for Parallel Experimentation"
+            , ideaScaleLink 105563
+                "Research: Unique Pseudonymous Identification of DReps through Joint Content Creation"
             ]
+
+
+ideaScaleLink : Int -> String -> Element msg
+ideaScaleLink propNum label =
+    El.link
+        [ El.spacing 15
+        , Font.justify
+        , Font.color <| El.rgb 0.65 0.85 1.0
+        ]
+        { url =
+            "https://cardano.ideascale.com/c/idea/"
+                ++ String.fromInt propNum
+        , label = El.text label
+        }
