@@ -67,7 +67,15 @@ view model =
                 , El.height El.fill
                 , Bg.color <| El.rgb 0.05 0.05 0.05
                 ]
-                [ el
+                [ El.paragraph
+                    [ Font.justify
+                    , El.spacing 10
+                    , Font.color <| El.rgb 1.0 0.85 0.65
+                    ]
+                    [ el [ Font.bold ] <| El.text "Note: "
+                    , El.text "This will be the landing page for all the progress I've made in my projects! Please come back to see how things are going as time progresses!"
+                    ]
+                , el
                     [ Font.size 30
                     , Font.color <| El.rgb 0.5 0.5 0.5
                     , El.alignRight
@@ -77,10 +85,10 @@ view model =
                 , el [ Font.bold, Font.size 25 ] <|
                     El.text "My Fund10 Proposals:"
                 , propCard 107701
-                    "Dims: Distributed Innovation Management System"
+                    "Dims: Distributed Idea Management System"
                     "₳55,000"
-                    "The current paradigm for ideation and development in Cardano favors competition and siloed development over collaboration and convergent solutions in the most distributed way possible."
-                    "Researching and developing the MVP of a tool for building structured knowledge graphs with integrated project development capabilities. Store locally and share parts of your graph across the network!"
+                    "Though collaboration is encouraged, the current ideation process in Catalyst incentivizes siloed competition. How can we make collaboration and convergent solutions the naturally beneficial choice?"
+                    "Dims: The research and development of a tool for building and merging structured graphs of knowledge and code. Highlighting how efforts overlap between different projects and individual interests."
                 , propCard 106578
                     "Research: Strategically Competing with Mobile Money Markets in Africa"
                     "₳15,000"
