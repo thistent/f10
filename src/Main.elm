@@ -87,8 +87,8 @@ view model =
                 , propCard 106578
                     "Research: Strategically Competing with Mobile Money Markets in Africa"
                     "₳15,000"
-                    "Mobile money is commonly used in South-East Africa. Cardano hasn't yet disrupted this market. There are untapped opportunities to improve people's ability to move money as well as Cardano's reach!"
-                    "I see these transactions every day. My solution is a detailed report indicating what Cardano wallet providers would need to do to make the switch to Cardano-based solutions as easy as possible."
+                    "Mobile money is commonly used in southeast Africa. Cardano hasn't yet disrupted this market. There are untapped opportunities to improve people's ability to move money as well as Cardano's reach!"
+                    "    I see these transactions all the time. My solution is a local survey & detailed report about how Cardano wallet providers could work to make the switch to a Cardano-based solution as easy as possible."
                 , propCard 105979
                     "Research: Real DAOs and Optimizing Governance for Parallel Experimentation"
                     "₳20,000"
