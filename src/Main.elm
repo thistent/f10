@@ -85,7 +85,7 @@ view model =
                 , el [ Font.bold, Font.size 25 ] <|
                     El.text "My Fund10 Proposals:"
                 , propCard 106578
-                    "Research: Strategically Competing with Mobile Money Markets in Africa"
+                    "Research: Strategically Competing with Mobile Money Markets in Malawi"
                     "₳15,000"
                     "Mobile money is commonly used in southeast Africa. Cardano hasn't yet disrupted this market. There are untapped opportunities to improve people's ability to move money as well as Cardano's reach!"
                     "    I see these transactions all the time. My solution is a local survey & detailed report about how Cardano wallet providers could work to make the switch to a Cardano-based solution as easy as possible."
