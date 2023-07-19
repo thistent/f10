@@ -36,7 +36,8 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { text = "" }
     , Http.get
-        { url = "/docs/notes/test.md?raw=1"
+        -- { url = "/docs/notes/test.md?raw=1"
+        { url = "https://raw.githubusercontent.com/thistent/f10/main/docs/notes/test.md"
         , expect = Http.expectString GotText
         }
     )
@@ -51,7 +52,12 @@ update msg model =
                     ( { model | text = txt }, Cmd.none )
 
                 Err _ ->
-                    ( model, Cmd.none )
+                    ( { model
+                        | text =
+                            "Error while loading external text!"
+                      }
+                    , Cmd.none
+                    )
 
 
 subs : Model -> Sub Msg

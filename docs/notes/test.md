@@ -1,1 +1,1 @@
-And, yes, requesting text from a file works on GitHub Pages!
+And, yes, requesting text from a file works on **github pages**!
