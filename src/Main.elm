@@ -36,8 +36,10 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { text = "" }
     , Http.get
+        -- FIXME : This should work both locally and on github!
         -- { url = "/docs/notes/test.md?raw=1"
-        { url = "https://raw.githubusercontent.com/thistent/f10/main/docs/notes/test.md"
+        --{ url = "https://raw.githubusercontent.com/thistent/f10/main/docs/notes/test.md"
+        { url = "notes/test.md"
         , expect = Http.expectString GotText
         }
     )
@@ -51,13 +53,8 @@ update msg model =
                 Ok txt ->
                     ( { model | text = txt }, Cmd.none )
 
-                Err _ ->
-                    ( { model
-                        | text =
-                            "Error while loading external text!"
-                      }
-                    , Cmd.none
-                    )
+                Err e ->
+                    ( model, Cmd.none )
 
 
 subs : Model -> Sub Msg
@@ -87,17 +84,7 @@ view model =
                 , El.height El.fill
                 , Bg.color <| El.rgb 0.05 0.05 0.05
                 ]
-                [ El.paragraph
-                    [ Font.justify
-                    , El.spacing 10
-                    , Font.color <| El.rgb 1.0 0.85 0.65
-                    ]
-                    [ el [ Font.bold ] <| El.text "Note: "
-                    , El.text <| "This will be the landing page for all the progress I've made in my projects! Please come back and see my progress as time goes on! "
-                    , el [ Font.color <| El.rgb 1.0 0.65 0.85 ] <|
-                        El.text model.text
-                    ]
-                , el
+                [ el
                     [ Font.size 30
                     , Font.color <| El.rgb 0.5 0.5 0.5
                     , El.alignRight
@@ -126,6 +113,16 @@ view model =
                     "₳45,000"
                     "Though collaboration is encouraged, the current ideation process in Catalyst incentivizes siloed competition. How can we make collaboration and convergent solutions the naturally beneficial choice?"
                     "Dims: The research and development of a tool for building and merging structured graphs of knowledge and code. Highlighting how efforts overlap between different projects and individual interests."
+                , El.paragraph
+                    [ Font.justify
+                    , El.spacing 10
+                    , Font.color <| El.rgb 1.0 0.85 0.65
+                    ]
+                    [ el [ Font.bold ] <| El.text "Note: "
+                    , El.text <| "This will be the landing page for all the progress I've made in my projects! Please come back and see my progress as time goes on! "
+                    , el [ Font.color <| El.rgb 1.0 0.65 0.85 ] <|
+                        El.text model.text
+                    ]
                 ]
             , el [ El.width <| El.fillPortion 1 ] <| El.text ""
             ]
