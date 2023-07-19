@@ -51,9 +51,6 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { project = emptyProject }
     , Http.get
-        -- FIXME : This should work both locally and on github!
-        -- { url = "/docs/notes/test.md?raw=1"
-        --{ url = "https://raw.githubusercontent.com/thistent/f10/main/docs/notes/test.md"
         { url = "notes/test.json"
         , expect = Http.expectJson GotText projectDecoder
         }
@@ -124,6 +121,18 @@ view model =
                 , propCard dao
                 , propCard dreps
                 , propCard model.project
+                , El.link
+                    [ El.spacing 15
+                    , El.paddingXY 10 5
+                    , Font.size 20
+                    , Border.width 1
+                    , Border.color <| El.rgb 1.0 0.85 0.65
+                    , Border.dashed
+                    , Bg.color <| El.rgb 0.1 0.085 0.065
+                    ]
+                    { url = "https://github.com/thistent/f10/"
+                    , label = el [ Font.color <| El.rgb 1.0 0.85 0.65 ] <| El.text "View source on GitHub"
+                    }
                 ]
             , el [ El.width <| El.fillPortion 1 ] <| El.text ""
             ]
@@ -176,7 +185,7 @@ contentBlock =
 dims : Float -> Element Msg
 dims fs =
     El.image
-        [ El.height <| El.px <| round <| fs * 0.8 -- - (fs * 1 / 6)
+        [ El.height <| El.px <| round <| fs * 0.8
         , El.moveUp <| fs * 0.007
         ]
         { src = "assets/dims.svg"
