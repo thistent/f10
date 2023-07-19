@@ -7,6 +7,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Html exposing (Html)
 import Http
+import Json.Decode as Jd exposing (Decoder)
 
 
 type alias Model =
@@ -39,8 +40,8 @@ init () =
         -- FIXME : This should work both locally and on github!
         -- { url = "/docs/notes/test.md?raw=1"
         --{ url = "https://raw.githubusercontent.com/thistent/f10/main/docs/notes/test.md"
-        { url = "notes/test.md"
-        , expect = Http.expectString GotText
+        { url = "notes/test.json"
+        , expect = Http.expectJson GotText testDecoder
         }
     )
 
@@ -84,7 +85,20 @@ view model =
                 , El.height El.fill
                 , Bg.color <| El.rgb 0.05 0.05 0.05
                 ]
-                [ el
+                [ El.row
+                    [ Font.size 40
+                    , Font.color <| El.rgb 0.85 1.0 0.65
+                    ]
+                    [ dims 40.0
+                    , El.text " : Distributed Idea Management System"
+                    ]
+                , El.paragraph
+                    [ Font.justify ]
+                    [ El.text "This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) of my  "
+                    , dims 20.0
+                    , El.text "  project."
+                    ]
+                , el
                     [ Font.size 30
                     , Font.color <| El.rgb 0.5 0.5 0.5
                     , El.alignRight
@@ -107,7 +121,7 @@ view model =
                     "Research: Unique Pseudonymous Identification of DReps through Joint Content Creation"
                     "₳20,000"
                     "Allowing DReps to remain anonymous has value, but there are some dangers to fair governance if very large whales decide to game the system. DReps should be encouraged to consider diverse perspectives."
-                    "Research detailing how community discussions can not only help DReps broaden their perspectives, but also be used to validate DReps as unique individuals, making things like quadratic voting possible."
+                    "                  Research detailing how community discussions can not only help DReps broaden their perspectives, but also be used to validate DReps as unique individuals, making things like quadratic voting possible."
                 , propCard 107701
                     "Dims: Distributed Idea Management System"
                     "₳45,000"
@@ -167,6 +181,22 @@ propCard propNum label money problem solution =
                 [ El.text solution ]
             ]
         ]
+
+
+dims : Float -> Element Msg
+dims fs =
+    El.image
+        [ El.height <| El.px <| round <| fs * 0.8 -- - (fs * 1 / 6)
+        , El.moveUp <| fs * 0.007
+        ]
+        { src = "assets/dims.svg"
+        , description = "dims"
+        }
+
+
+testDecoder : Decoder String
+testDecoder =
+    Jd.field "problem" Jd.string
 
 
 edges =

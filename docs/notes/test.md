@@ -1,1 +1,0 @@
-And, yes, requesting raw text from a file works on **github pages**!
