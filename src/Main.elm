@@ -6,14 +6,16 @@ import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
 import Html exposing (Html)
+import Http
 
 
-type Model
-    = Empty
+type alias Model =
+    { text : String
+    }
 
 
 type Msg
-    = NoOp
+    = GotText (Result Http.Error String)
 
 
 main : Program () Model Msg
@@ -32,12 +34,24 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( Empty, Cmd.none )
+    ( { text = "" }
+    , Http.get
+        { url = "/docs/notes/test.md?raw=1"
+        , expect = Http.expectString GotText
+        }
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        GotText res ->
+            case res of
+                Ok txt ->
+                    ( { model | text = txt }, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
 
 
 subs : Model -> Sub Msg
@@ -73,7 +87,9 @@ view model =
                     , Font.color <| El.rgb 1.0 0.85 0.65
                     ]
                     [ el [ Font.bold ] <| El.text "Note: "
-                    , El.text "This will be the landing page for all the progress I've made in my projects! Please come back and see my progress as time goes on!"
+                    , El.text <| "This will be the landing page for all the progress I've made in my projects! Please come back and see my progress as time goes on! "
+                    , el [ Font.color <| El.rgb 1.0 0.65 0.85 ] <|
+                        El.text model.text
                     ]
                 , el
                     [ Font.size 30
