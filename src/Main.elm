@@ -26,7 +26,7 @@ type alias Project =
 
 emptyProject : Project
 emptyProject =
-    Project "Dummy Proj." "" "" "" ""
+    Project "[[Loading Document]]" "" "" "" ""
 
 
 type Msg
