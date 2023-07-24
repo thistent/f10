@@ -1,8 +1,9 @@
 module Main exposing (..)
 
 import Browser
-import Color exposing (Color)
-import Element as El exposing (Element, el)
+import Color as C
+import Color.Manipulate as CM
+import Element as El exposing (Color, Element, el)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
@@ -83,122 +84,206 @@ subs model =
 view : Model -> Html Msg
 view model =
     El.layout
-        [ Font.color <| El.rgb 1 1 1
+        [ Font.color pal.white
         , Font.size 20
-        , Bg.color <| El.rgb 0 0 0
+        , Bg.color pal.black
         , El.width El.fill
+        , El.inFront <|
+            el
+                [ Font.size 20
+                , Font.letterSpacing 1.2
+                , Font.color pal.gray
+                , El.alignRight
+                , El.padding 40
+                ]
+            <|
+                el
+                    [ Bg.color <| addAlpha 0.75 <| pal.black
+                    , El.paddingXY 20 10
+                    , Border.rounded 10
+                    ]
+                <|
+                    El.text "Ken Stanton"
         , El.inFront <|
             el
                 [ El.alignRight
                 , El.alignBottom
-                , El.padding 20
+                , El.padding 40
                 ]
             <|
-                --dims 30
-                (dims 30 <| El.rgb 0.65 0.85 1.0)
+                el
+                    [ Bg.color <| addAlpha 0.75 <| pal.black
+                    , El.paddingXY 20 10
+                    , Border.rounded 10
+                    ]
+                <|
+                    hd 1
+                        [ dims <| styleMap toFloat <| levelStyle 1
+                        , El.text " / Main"
+                        ]
         ]
     <|
-        El.row
-            [ El.width El.fill
+        El.column
+            [ El.padding 80
+            , El.spacing 50
             , El.height El.fill
+            , El.width <| El.maximum 1080 <| El.fill
             ]
-            [ el [ El.width <| El.fillPortion 1 ] <| El.text ""
-            , El.column
-                [ El.centerX
-                , El.padding 40
-                , El.spacing 40
-                , El.width <| El.fillPortion 6
-                , El.height El.fill
+            [ hd 2
+                [ El.text "Welcome to the Distributed Idea Management System"
                 ]
-                [ El.wrappedRow
-                    [ Font.size 36
-                    , Font.color <| El.rgb 0.85 1.0 0.65
-                    ]
-                    [ dims 36 <| El.rgb 0.85 1.0 0.65
-                    , El.text " : Distributed Idea Management System"
+            , textBlock
+                [ El.text "This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) of my  "
+                , dims { size = 20.0, color = pal.white }
+                , El.text "  project."
+                ]
+            , hbar
+            , hd 3 [ El.text "My Fund10 Proposals:" ]
+            , hbar
+            , propCard malawi
+            , propCard dao
+            , propCard dreps
+            , propCard model.project
+            , El.link
+                []
+                { url = "https://github.com/thistent/f10/"
+                , label =
+                    el
+                        [ Font.color pal.blue
+                        , Font.letterSpacing 1.2
+                        ]
+                    <|
+                        El.text "[[ View source on GitHub ]]"
+                }
+            ]
 
-                    --, poplar 36 <| El.rgb 0.85 1.0 0.65
-                    ]
-                , El.paragraph [ Font.justify, El.spacing 10 ]
-                    [ El.text "This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) of my  "
-                    , dims 20.0 <| El.rgba 1 1 1 1
-                    , El.text "  project."
-                    ]
-                , el
-                    [ Font.size 30
-                    , Font.color <| El.rgb 0.5 0.5 0.5
-                    , El.alignRight
-                    ]
-                  <|
-                    El.text "Ken Stanton"
-                , el
-                    [ Font.color <| El.rgb 1.0 0.85 0.65
-                    , Font.size 25
-                    ]
-                  <|
-                    El.text "My Fund10 Proposals:"
-                , propCard malawi
-                , propCard dao
-                , propCard dreps
-                , propCard model.project
-                , El.link
-                    [ El.spacing 15
-                    , El.paddingXY 10 5
-                    , Font.size 20
-                    , Border.width 1
-                    , Border.color <| El.rgb 1.0 0.65 0.85
-                    , Border.dashed
-                    , Bg.color <| El.rgb 0.1 0.065 0.085
-                    ]
-                    { url = "https://github.com/thistent/f10/"
-                    , label = el [ Font.color <| El.rgb 1.0 0.65 0.85 ] <| El.text "View source on GitHub"
-                    }
-                ]
-            , el [ El.width <| El.fillPortion 1 ] <| El.text ""
-            ]
+
+textBlock : List (Element Msg) -> Element Msg
+textBlock ls =
+    El.paragraph
+        [ Font.justify
+        , Font.letterSpacing 1.2
+        , El.spacing 15
+        ]
+        ls
+
+
+type alias Style a =
+    { size : a, color : El.Color }
+
+
+styleMap : (a -> b) -> Style a -> Style b
+styleMap f sty =
+    { size = f sty.size
+    , color = sty.color
+    }
+
+
+addAlpha : Float -> El.Color -> El.Color
+addAlpha alpha color =
+    let
+        addA c =
+            { c | alpha = alpha }
+    in
+    color |> El.toRgb |> addA |> El.fromRgb
+
+
+hd : Int -> List (Element Msg) -> Element Msg
+hd lev ls =
+    let
+        sty =
+            levelStyle lev
+    in
+    El.paragraph
+        [ Font.size sty.size
+        , Font.color sty.color
+        , Font.letterSpacing 1.2
+        , El.spacingXY 0 15
+        ]
+        ls
+
+
+levelStyle : Int -> Style Int
+levelStyle lev =
+    let
+        level : Int
+        level =
+            clamp 1 6 lev
+
+        size : Int
+        size =
+            17 + (7 - level) * 3
+    in
+    case level of
+        1 ->
+            Style size pal.darkRed
+
+        2 ->
+            Style size pal.redOrange
+
+        3 ->
+            Style size pal.orange
+
+        4 ->
+            Style size pal.yellow
+
+        5 ->
+            Style size pal.lightGreen
+
+        6 ->
+            Style size pal.green
+
+        _ ->
+            Style size pal.white
+
+
+hbar : Element Msg
+hbar =
+    el
+        [ El.height <| El.px 1
+        , El.width El.fill
+        , Border.widthEach { edges | bottom = 1 }
+        , Border.color pal.gray
+        ]
+    <|
+        El.none
 
 
 propCard : Project -> Element Msg
 propCard proj =
     El.column
         [ El.width El.fill
-        , El.padding 20
-        , El.spacing 20
-        , Bg.color <| El.rgb 0.08 0.08 0.08
-        , Border.width 1
-        , Border.dashed
-        , Border.color <| El.rgb 0.5 0.5 0.5
+        , El.spacing 40
         ]
-        [ El.link
-            [ El.spacing 15
-            , Font.color <| El.rgb 0.65 0.85 1.0
-            , Font.size 25
+        [ hd 4 [ El.text proj.title ]
+        , El.row
+            [ El.width El.fill ]
+            [ El.link
+                [ Font.color pal.blue
+                , Font.letterSpacing 1.2
+                ]
+                { url = proj.link
+                , label = El.paragraph [] [ El.text "[[ See on IdeaScale ]]" ]
+                }
+            , el
+                [ El.alignRight
+                , Font.color pal.green
+                ]
+              <|
+                El.text proj.ada
             ]
-            { url = proj.link
-            , label = El.paragraph [] [ El.text proj.title ]
-            }
-        , el
-            [ El.alignRight
-            , Font.color <| El.rgb 0.85 1.0 0.65
-            ]
-          <|
-            El.text proj.ada
-        , El.column [ El.spacing 10 ]
-            [ el [ Font.bold, Font.size 25 ] <| El.text "Problem:"
-            , contentBlock
+        , El.column [ El.spacing 30 ]
+            [ hd 5 [ El.text "Problem:" ]
+            , textBlock
                 [ El.text proj.problem ]
             ]
-        , El.column [ El.spacing 10 ]
-            [ el [ Font.bold, Font.size 25 ] <| El.text "Solution:"
-            , contentBlock
+        , El.column [ El.spacing 30 ]
+            [ hd 5 [ El.text "Solution:" ]
+            , textBlock
                 [ El.text proj.solution ]
             ]
+        , hbar
         ]
-
-
-contentBlock : List (Element Msg) -> Element Msg
-contentBlock =
-    El.paragraph [ Font.justify, El.spacing 10 ]
 
 
 
@@ -272,22 +357,22 @@ dreps =
 -- Svg Images --
 
 
-dims : Float -> El.Color -> Element Msg
-dims f color =
+dims : Style Float -> Element Msg
+dims sty =
     let
         scaleFactor : Float
         scaleFactor =
             0.8
     in
     el
-        [ El.paddingXY 2 0
+        [ El.paddingXY 4 0
         ]
     <|
         El.html <|
             Ts.svg
                 [ Ta.viewBox 0 0 79.374839 18.521
-                , Ta.width <| Tt.px <| f * (3.0 / 0.7) * scaleFactor
-                , Ta.height <| Tt.px <| f * scaleFactor
+                , Ta.width <| Tt.px <| sty.size * (3.0 / 0.7) * scaleFactor
+                , Ta.height <| Tt.px <| sty.size * scaleFactor
                 , Ta.preserveAspectRatio
                     (Tt.Align Tt.ScaleMid Tt.ScaleMid)
                     Tt.Slice
@@ -296,7 +381,7 @@ dims f color =
                     [ Ta.d dimsData
                     , Ta.fill <|
                         Tt.Paint <|
-                            elToColor color
+                            elToColor sty.color
 
                     -- elToColor color
                     , Ta.transform
@@ -349,7 +434,7 @@ poplar f color =
                      , Ta.height (Tt.px h)
                      , Ta.fill <|
                          Tt.Paint <|
-                             Color.rgb 0 0.3 0.6
+                             C.rgb 0 0.3 0.6
                      ]
                      []
                      ,
@@ -378,12 +463,149 @@ poplar f color =
                 ]
 
 
-elToColor : El.Color -> Color
+elToColor : Color -> C.Color
 elToColor =
-    El.toRgb >> Color.fromRgba
+    El.toRgb >> C.fromRgba
+
+
+colorToEl : C.Color -> Color
+colorToEl =
+    C.toRgba >> El.fromRgb
 
 
 
+-- Color Scheme --
+{- pal =
+   { black = El.rgb255 0x09 0x0A 0x0D
+   , dark0 = El.rgb255 0x20 0x1A 0x23 -- #201a23
+   , red1 = El.rgb255 0x33 0x21 0x29 -- #332129
+   , blue1 = El.rgb255 0x29 0x32 0x47 -- #293247
+   , red2 = El.rgb255 0x5B 0x2A 0x32 -- #5b2a32
+   , brown3 = El.rgb255 0x7A 0x41 0x3B -- #7a413b
+   , brown4 = El.rgb255 0xA3 0x67 0x49 -- #a36749
+   , blue2 = El.rgb255 0x2B 0x46 0x5D -- #2b465d
+   , green3 = El.rgb255 0x4D 0x68 0x3F -- #4d683f
+   , blue4 = El.rgb255 0x44 0x71 0x75 -- #447175
+   , pink5 = El.rgb255 0xA5 0x7A 0x80 -- #a57a80
+   , green5 = El.rgb255 0x8B 0xA3 0x5C -- #8ba35c
+   , brown6 = El.rgb255 0xC5 0x96 0x60 -- #c59660
+   , blue6 = El.rgb255 0x97 0xBA 0x9E -- #97ba9e
+   , tan7 = El.rgb255 0xCE 0xC0 0x98 -- #cec098
+   , yellow7 = El.rgb255 0xEB 0xDA 0x89 -- #ebda89
+   , light7 = El.rgb255 0xF1 0xEA 0xC3 -- #f1eac3
+   }
+-}
+
+
+pal =
+    let
+        bl =
+            -- #0c0e13
+            El.rgb255 0x0C 0x0E 0x13
+
+        wh =
+            -- #c0d3d3
+            El.rgb255 0xC0 0xD3 0xD3
+    in
+    { black =
+        bl
+    , white =
+        wh
+    , green =
+        -- #18b800
+        El.rgb255 0x18 0xB8 0x00
+    , blue =
+        -- #229ddf
+        El.rgb255 0x22 0x9D 0xDF
+    , cursorDark =
+        -- #005566
+        El.rgb255 0x00 0x55 0x66
+    , cursorLight =
+        -- #00f094
+        El.rgb255 0x00 0xF0 0x94
+    , lightGreen =
+        -- #abd600
+        El.rgb255 0xAB 0xD6 0x00
+    , gray =
+        mix 0.4 bl wh
+    , cyan =
+        -- #0eeef8
+        El.rgb255 0x0E 0xEE 0xF8
+    , yellow =
+        -- #fed167
+        El.rgb255 0xFE 0xD1 0x67
+    , orange =
+        -- #ff9d47
+        El.rgb255 0xFF 0x9D 0x47
+    , pink =
+        -- #ff6873
+        El.rgb255 0xFF 0x68 0x73
+    , redOrange =
+        -- #dd581d
+        El.rgb255 0xDD 0x58 0x1D
+    , darkRed =
+        -- #880011
+        El.rgb255 0x88 0x00 0x11
+    , berry =
+        -- #9f33dd
+        El.rgb255 0x9F 0x33 0xDD
+    }
+
+
+mix n a b =
+    map2ColorFun (\x y -> CM.weightedMix y x n) a b
+
+
+map2ColorFun : (C.Color -> C.Color -> C.Color) -> Color -> Color -> Color
+map2ColorFun f c1 c2 =
+    let
+        cc1 =
+            c1 |> El.toRgb >> C.fromRgba
+
+        cc2 =
+            c2 |> El.toRgb >> C.fromRgba
+    in
+    f cc1 cc2 |> C.toRgba >> El.fromRgb
+
+
+
+{-
+
+   oldPal =
+       { -- #090a0d
+         black = El.rgb255 0x09 0x0A 0x0D
+       , -- #161d32
+         night = El.rgb255 0x16 0x1D 0x32
+       , -- #253d60
+         dusk = El.rgb255 0x25 0x3D 0x60
+       , -- #2e7ba8
+         day = El.rgb255 0x2E 0x7B 0xA8
+       , -- #51f7e3
+         cyan = El.rgb255 0x51 0xF7 0xE3
+       , -- #76ad7d
+         moss = El.rgb255 0x76 0xAD 0x7D
+       , -- #c5ed7f
+         lime = El.rgb255 0xC5 0xED 0x7F
+       , -- #421e2c
+         grape = El.rgb255 0x42 0x1E 0x2C
+       , -- #7d2d51
+         berry = El.rgb255 0x7D 0x2D 0x51
+       , -- #a76dbd
+         plum = El.rgb255 0xA7 0x6D 0xBD
+       , -- #ed7acb
+         pink = El.rgb255 0xED 0x7A 0xCB
+       , -- #c42840
+         red = El.rgb255 0x42 0x28 0x40
+       , -- #d66300
+         rust = El.rgb255 0xD6 0x63 0x00
+       , -- #efae40
+         lemon = El.rgb255 0xEF 0xAE 0x40
+       , -- #ffe1a3
+         sand = El.rgb255 0xFF 0xE1 0xA3
+       , -- #fff3d6
+         white = El.rgb255 0xFF 0xF3 0xD6
+       }
+-}
 -- Dims Path Data --
 
 
