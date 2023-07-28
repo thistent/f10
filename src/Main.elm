@@ -1,17 +1,27 @@
 module Main exposing (..)
 
 import Browser
+import Browser.Dom as Dom
+import Browser.Events as Events
 import Color as C
 import Color.Manipulate as CM
+import Delay exposing (Delay)
+import Ease
 import Element as El exposing (Color, Element, el)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
+import Force exposing (State)
+import Graph exposing (Edge, Graph, Node, NodeContext, NodeId)
 import Html exposing (Html)
+import Html.Events.Extra.Mouse as Mouse
+import Html.Events.Extra.Touch as Touch
 import Http
 import Json.Decode as Jd exposing (Decoder)
+import Task
 import TypedSvg as Ts
 import TypedSvg.Attributes as Ta
+import TypedSvg.Attributes.InPx as Tpx
 import TypedSvg.Core as Tc exposing (Svg)
 import TypedSvg.Filters.Attributes as Tf
 import TypedSvg.Types as Tt
@@ -19,7 +29,13 @@ import TypedSvg.Types as Tt
 
 type alias Model =
     { project : Project
+    , window : Delay Dom.Viewport
     }
+
+
+waitTime : Float
+waitTime =
+    2000
 
 
 type alias Project =
@@ -37,7 +53,9 @@ emptyProject =
 
 
 type Msg
-    = GotDoc (Result Http.Error Project)
+    = Tick Float
+    | WindowSize Dom.Viewport
+    | GotDoc (Result Http.Error Project)
 
 
 main : Program () Model Msg
@@ -48,79 +66,148 @@ main =
         , subscriptions = subs
         , view =
             \model ->
-                { title = "F10 Proposals - Ken Stanton"
-                , body = [ view model ]
+                { title = "Dims"
+                , body =
+                    [ model.window
+                        |> Delay.switch
+                            (loadingPage model)
+                            (view model)
+                    ]
                 }
         }
 
 
+loadingPage : Model -> Html Msg
+loadingPage model =
+    let
+        size : Float
+        size =
+            40.0
+
+        ease : Float
+        ease =
+            case Delay.timer model.window of
+                Nothing ->
+                    0
+
+                Just f ->
+                    Ease.inOut
+                        Ease.inSine
+                        Ease.outSine
+                        (2 * (waitTime + f) / waitTime)
+    in
+    El.layout
+        [ Bg.color pal.black
+        , Font.color <| mix ease pal.black pal.white
+        , Font.size <| round size
+        , El.width El.fill
+        , El.height El.fill
+        ]
+    <|
+        El.wrappedRow
+            [ El.centerX
+            , El.centerY
+            ]
+            --[ el [ El.centerY ] <| El.text "Starting "
+            [ El.text "Welcome to "
+            , dims
+                { color = mix ease pal.black pal.blue
+                , size = size
+                }
+
+            --, El.text <| String.fromFloat ease
+            ]
+
+
 init : () -> ( Model, Cmd Msg )
 init () =
-    ( { project = emptyProject }
-    , Http.get
-        { url = "notes/dims.json"
-        , expect = Http.expectJson GotDoc projectDecoder
-        }
+    ( { project = emptyProject
+      , window = Delay.wait waitTime Nothing
+      }
+    , Cmd.batch
+        [ Task.perform WindowSize Dom.getViewport
+        , Http.get
+            { url = "notes/dims.json"
+            , expect = Http.expectJson GotDoc projectDecoder
+            }
+        ]
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Tick delta ->
+            ( { model | window = Delay.dec delta model.window }
+            , Cmd.none
+            )
+
+        WindowSize viewport ->
+            ( { model | window = Delay.update model.window viewport }
+            , Cmd.none
+            )
+
         GotDoc res ->
             case res of
                 Ok p ->
-                    ( { model | project = p }, Cmd.none )
+                    ( { model | project = p }
+                    , Cmd.none
+                    )
 
                 Err e ->
-                    ( model, Cmd.none )
+                    ( model
+                    , Cmd.none
+                    )
 
 
 subs : Model -> Sub Msg
 subs model =
-    Sub.none
+    Sub.batch
+        [ Events.onAnimationFrameDelta Tick
+        ]
+
+
+kerning : Float
+kerning =
+    1.2
 
 
 view : Model -> Html Msg
 view model =
+    let
+        l =
+            levelStyle 1
+    in
     El.layout
         [ Font.color pal.white
-        , Font.size 20
+        , Font.size 18
         , Bg.color pal.black
         , El.width El.fill
         , El.inFront <|
-            el
-                [ Font.size 20
-                , Font.letterSpacing 1.2
-                , Font.color pal.gray
-                , El.alignRight
-                , El.padding 40
-                ]
-            <|
-                el
-                    [ Bg.color <| addAlpha 0.75 <| pal.black
-                    , El.paddingXY 20 10
-                    , Border.rounded 10
-                    ]
-                <|
-                    El.text "Ken Stanton"
-        , El.inFront <|
-            el
+            El.column
                 [ El.alignRight
-                , El.alignBottom
-                , El.padding 40
+                , El.height El.fill
                 ]
-            <|
-                el
+                [ el
                     [ Bg.color <| addAlpha 0.75 <| pal.black
-                    , El.paddingXY 20 10
+                    , El.alignRight
+                    , El.padding 20
+                    , Font.size 20
+                    , Font.letterSpacing kerning
+                    , Font.color pal.gray
                     , Border.rounded 10
                     ]
-                <|
-                    hd 1
-                        [ dims <| styleMap toFloat <| levelStyle 1
-                        , El.text " / Main"
-                        ]
+                  <|
+                    El.text "Ken Stanton"
+                , el
+                    [ El.height El.fill
+                    , El.width <| El.px 440
+                    , Border.color pal.yellow
+                    , Border.width 1
+                    ]
+                  <|
+                    El.none
+                ]
         ]
     <|
         El.column
@@ -130,10 +217,11 @@ view model =
             , El.width <| El.maximum 1080 <| El.fill
             ]
             [ hd 2
-                [ El.text "Welcome to the Distributed Idea Management System"
+                [ dims <| styleMap toFloat <| levelStyle 2
+                , El.text " : The Distributed Idea Management System"
                 ]
             , textBlock
-                [ El.text "This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) of my  "
+                [ El.text "This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) for my  "
                 , dims { size = 20.0, color = pal.white }
                 , El.text "  project."
                 ]
@@ -150,7 +238,7 @@ view model =
                 , label =
                     el
                         [ Font.color pal.blue
-                        , Font.letterSpacing 1.2
+                        , Font.letterSpacing kerning
                         ]
                     <|
                         El.text "[[ View source on GitHub ]]"
@@ -162,7 +250,7 @@ textBlock : List (Element Msg) -> Element Msg
 textBlock ls =
     El.paragraph
         [ Font.justify
-        , Font.letterSpacing 1.2
+        , Font.letterSpacing kerning
         , El.spacing 15
         ]
         ls
@@ -197,7 +285,7 @@ hd lev ls =
     El.paragraph
         [ Font.size sty.size
         , Font.color sty.color
-        , Font.letterSpacing 1.2
+        , Font.letterSpacing kerning
         , El.spacingXY 0 15
         ]
         ls
@@ -260,7 +348,7 @@ propCard proj =
             [ El.width El.fill ]
             [ El.link
                 [ Font.color pal.blue
-                , Font.letterSpacing 1.2
+                , Font.letterSpacing kerning
                 ]
                 { url = proj.link
                 , label = El.paragraph [] [ El.text "[[ See on IdeaScale ]]" ]
@@ -366,6 +454,7 @@ dims sty =
     in
     el
         [ El.paddingXY 4 0
+        , El.centerY
         ]
     <|
         El.html <|
