@@ -5,19 +5,25 @@ import Browser.Dom as Dom
 import Browser.Events as Events
 import Color as C
 import Color.Manipulate as CM
-import Delay exposing (Delay)
+import Delay exposing (Delay, Timer)
 import Ease
-import Element as El exposing (Color, Element, el)
-import Element.Background as Bg
-import Element.Border as Border
-import Element.Font as Font
+import El exposing (Color, Element, el)
+import El.Background as Bg
+import El.Border as Border
+import El.Font as Font
 import Force exposing (State)
 import Graph exposing (Edge, Graph, Node, NodeContext, NodeId)
 import Html exposing (Html)
+import Html.Attributes as Attr
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Touch as Touch
 import Http
 import Json.Decode as Jd exposing (Decoder)
+import Markdown.Block as Md
+import Markdown.Html as MdHtml
+import Markdown.Parser as Md
+import Markdown.Renderer as Md
+import Pane exposing (Pane, Size, SplitRenderer)
 import Task
 import TypedSvg as Ts
 import TypedSvg.Attributes as Ta
@@ -27,15 +33,24 @@ import TypedSvg.Filters.Attributes as Tf
 import TypedSvg.Types as Tt
 
 
+
+-- Types --
+
+
 type alias Model =
-    { project : Project
+    { project : Delay Project
     , window : Delay Dom.Viewport
     }
 
 
-waitTime : Float
-waitTime =
-    2000
+type Msg
+    = Tick Float
+    | WindowSize Dom.Viewport
+    | GotDoc (Result Http.Error Project)
+
+
+type alias Style a =
+    { size : a, color : El.Color }
 
 
 type alias Project =
@@ -47,15 +62,17 @@ type alias Project =
     }
 
 
-emptyProject : Project
-emptyProject =
-    Project "Loading Document..." "" "" "" ""
+
+-- Constants --
 
 
-type Msg
-    = Tick Float
-    | WindowSize Dom.Viewport
-    | GotDoc (Result Http.Error Project)
+kerning : Float
+kerning =
+    1.2
+
+
+
+-- Main --
 
 
 main : Program () Model Msg
@@ -70,31 +87,216 @@ main =
                 , body =
                     [ model.window
                         |> Delay.switch
-                            (loadingPage model)
+                            loadingPage
                             (view model)
                     ]
                 }
         }
 
 
-loadingPage : Model -> Html Msg
-loadingPage model =
+init : () -> ( Model, Cmd Msg )
+init () =
+    ( { project = Delay.wait 300 Nothing
+      , window = Delay.wait 2000 Nothing
+      }
+    , Cmd.batch
+        [ Task.perform WindowSize Dom.getViewport
+        , Http.get
+            { url = "notes/dims.json"
+            , expect = Http.expectJson GotDoc projectDecoder
+            }
+        ]
+    )
+
+
+
+-- Update --
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        Tick delta ->
+            ( { model
+                | window = Delay.tick delta model.window
+                , project = Delay.tick delta model.project
+              }
+            , Cmd.none
+            )
+
+        WindowSize viewport ->
+            ( { model | window = Delay.update model.window viewport }
+            , Cmd.none
+            )
+
+        GotDoc res ->
+            case res of
+                Ok p ->
+                    ( { model | project = Delay.update model.project p }
+                    , Cmd.none
+                    )
+
+                Err e ->
+                    ( model
+                    , Cmd.none
+                    )
+
+
+
+-- Subscriptions --
+
+
+subs : Model -> Sub Msg
+subs model =
+    Sub.batch
+        [ Events.onAnimationFrameDelta Tick
+        ]
+
+
+
+-- View --
+
+
+view : Model -> Dom.Viewport -> Html Msg
+view model vp =
+    let
+        size : Size
+        size =
+            { width = vp.viewport.width
+            , height = vp.viewport.height
+            }
+    in
+    El.layout
+        [ El.width El.fill
+        , El.height El.fill
+        , Font.color pal.white
+        , Font.size 18
+        , Bg.color pal.black
+        , El.inFront <|
+            El.column
+                [ El.alignRight
+                , El.height El.fill
+                ]
+                [ el
+                    [ Border.rounded 10
+                    , Bg.color <| addAlpha 0.75 <| pal.black
+                    , Font.size 20
+                    , fontSpacing
+                    , Font.color pal.gray
+                    , El.alignRight
+                    , El.paddingXY 15 10
+                    ]
+                  <|
+                    el [ El.moveUp 1.5 ] <|
+                        El.text "Ken Stanton"
+                , el
+                    [ El.alignRight
+                    , El.alignBottom
+                    , El.paddingXY 15 10
+                    , Font.size 20
+                    , fontSpacing
+                    , Font.color pal.gray
+                    , Bg.color <| addAlpha 0.75 <| pal.black
+                    , Border.rounded 10
+                    ]
+                  <|
+                    dims <|
+                        {- styleMap toFloat <|
+                           levelStyle 1
+                        -}
+                        { size = 50, color = pal.blue }
+                ]
+        ]
+    <|
+        Pane.render splitRenderer size <|
+            Pane.vSplit 0.5
+                (Pane.single <| innerView model)
+                (Pane.single <| paneContents pal.blue)
+
+
+splitRenderer : SplitRenderer (Element Msg)
+splitRenderer =
+    { h =
+        \f size e1 e2 ->
+            El.column
+                [ El.width El.fill
+                , El.height El.fill
+                ]
+                [ el
+                    [ El.height <| El.px <| round <| f * size.height
+                    , El.width El.fill
+
+                    --, scrollStyle
+                    , El.scrollbars
+
+                    --, El.clip
+                    ]
+                  <|
+                    e1
+                , el
+                    [ El.height El.fill
+                    , El.width El.fill
+
+                    --, scrollStyle
+                    , El.scrollbars
+
+                    --, El.clip
+                    ]
+                  <|
+                    e2
+                ]
+    , v =
+        \f size e1 e2 ->
+            El.row
+                [ El.width El.fill
+                , El.height El.fill
+                ]
+                [ el
+                    [ El.width <|
+                        El.px <|
+                            round <|
+                                f
+                                    * size.width
+                    , El.height El.fill
+                    , El.scrollbars
+                    ]
+                  <|
+                    e1
+                , el
+                    [ El.height El.fill
+                    , El.width El.fill
+                    , El.scrollbars
+                    ]
+                  <|
+                    e2
+                ]
+    }
+
+
+paneContents : El.Color -> Size -> Element Msg
+paneContents color size =
+    el
+        [ Bg.color pal.black
+        , Font.color color
+        , El.width El.fill
+        , El.height El.fill
+        ]
+    <|
+        el [ El.centerX, El.centerY ] <|
+            El.text "Hello Pane"
+
+
+loadingPage : Timer -> Html Msg
+loadingPage t =
     let
         size : Float
         size =
-            40.0
+            50.0
 
         ease : Float
         ease =
-            case Delay.timer model.window of
-                Nothing ->
-                    0
-
-                Just f ->
-                    Ease.inOut
-                        Ease.inSine
-                        Ease.outSine
-                        (2 * (waitTime + f) / waitTime)
+            (2 * (t.original + t.current) / t.original)
+                |> Ease.inOut Ease.inSine Ease.outSine
     in
     El.layout
         [ Bg.color pal.black
@@ -108,137 +310,146 @@ loadingPage model =
             [ El.centerX
             , El.centerY
             ]
-            --[ el [ El.centerY ] <| El.text "Starting "
             [ El.text "Welcome to "
             , dims
                 { color = mix ease pal.black pal.blue
                 , size = size
                 }
-
-            --, El.text <| String.fromFloat ease
             ]
 
 
-init : () -> ( Model, Cmd Msg )
-init () =
-    ( { project = emptyProject
-      , window = Delay.wait waitTime Nothing
-      }
-    , Cmd.batch
-        [ Task.perform WindowSize Dom.getViewport
-        , Http.get
-            { url = "notes/dims.json"
-            , expect = Http.expectJson GotDoc projectDecoder
-            }
-        ]
-    )
+dimsMd : String
+dimsMd =
+    """
+## **Dims** : The Distributed Idea Management System
+
+This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) for my **Dims** project
+
+---
+
+### My Fund10 Proposals
+
+[View Source on GitHub](https://github.com/thistent/f10/)
+
+"""
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        Tick delta ->
-            ( { model | window = Delay.dec delta model.window }
-            , Cmd.none
-            )
-
-        WindowSize viewport ->
-            ( { model | window = Delay.update model.window viewport }
-            , Cmd.none
-            )
-
-        GotDoc res ->
-            case res of
-                Ok p ->
-                    ( { model | project = p }
-                    , Cmd.none
-                    )
-
-                Err e ->
-                    ( model
-                    , Cmd.none
-                    )
+renderMd : String -> Element Msg
+renderMd str =
+    str
+        |> Md.parse
+        |> Result.withDefault [ Md.Paragraph [ Md.Text "Oops!" ] ]
+        |> Md.render markdownRenderer
+        |> Result.withDefault [ El.text "Oops again!" ]
+        |> (\stuff ->
+                El.column
+                    [ Font.color pal.white
+                    , El.spacing 40
+                    ]
+                    stuff
+           )
 
 
-subs : Model -> Sub Msg
-subs model =
-    Sub.batch
-        [ Events.onAnimationFrameDelta Tick
-        ]
+markdownRenderer : Md.Renderer (Element Msg)
+markdownRenderer =
+    { heading =
+        \{ level, rawText, children } ->
+            case level of
+                Md.H1 ->
+                    hd 1 children
+
+                Md.H2 ->
+                    hd 2 children
+
+                Md.H3 ->
+                    hd 3 children
+
+                Md.H4 ->
+                    hd 4 children
+
+                Md.H5 ->
+                    hd 5 children
+
+                Md.H6 ->
+                    hd 6 children
+    , paragraph =
+        \list ->
+            textBlock list
+    , blockQuote = \list -> El.paragraph [] list
+    , html = MdHtml.oneOf []
+    , text = \s -> el [] <| El.text s
+    , codeSpan =
+        \str ->
+            El.text str
+                |> el [ Font.family [ Font.monospace ] ]
+    , strong = \list -> El.paragraph [ Font.bold ] list
+    , emphasis = \list -> El.paragraph [ Font.italic ] list
+    , strikethrough = \list -> El.paragraph [ Font.strike ] list
+    , hardLineBreak = El.none
+    , link =
+        \{ title, destination } list ->
+            El.link
+                [ Font.color pal.blue
+                , fontSpacing
+                ]
+                { url = destination
+                , label =
+                    El.paragraph [] <|
+                        [ El.text "[[ "
+                        , El.paragraph [] list
+                        , El.text <| " ]]"
+                        ]
+                }
+    , image = \img -> El.none
+    , unorderedList = \items -> El.none
+    , orderedList = \startIndex items -> El.none
+    , codeBlock =
+        \{ body, language } -> El.none
+    , thematicBreak =
+        hbar
+    , table = \list -> El.none
+    , tableHeader = \list -> El.none
+    , tableBody = \list -> El.none
+    , tableRow = \list -> El.none
+    , tableCell = \maybeArg list -> El.none
+    , tableHeaderCell = \maybeArg list -> El.none
+    }
 
 
-kerning : Float
-kerning =
-    1.2
-
-
-view : Model -> Html Msg
-view model =
+innerView : Model -> Size -> Element Msg
+innerView model _ =
     let
         l =
             levelStyle 1
     in
-    El.layout
-        [ Font.color pal.white
+    el
+        [ Bg.color pal.black
+        , Font.color pal.white
         , Font.size 18
-        , Bg.color pal.black
         , El.width El.fill
-        , El.inFront <|
-            El.column
-                [ El.alignRight
-                , El.height El.fill
-                ]
-                [ el
-                    [ Bg.color <| addAlpha 0.75 <| pal.black
-                    , El.alignRight
-                    , El.padding 20
-                    , Font.size 20
-                    , Font.letterSpacing kerning
-                    , Font.color pal.gray
-                    , Border.rounded 10
-                    ]
-                  <|
-                    El.text "Ken Stanton"
-                , el
-                    [ El.height El.fill
-                    , El.width <| El.px 440
-                    , Border.color pal.yellow
-                    , Border.width 1
-                    ]
-                  <|
-                    El.none
-                ]
         ]
     <|
         El.column
-            [ El.padding 80
-            , El.spacing 50
+            [ El.padding 40
+            , El.spacing 40
             , El.height El.fill
             , El.width <| El.maximum 1080 <| El.fill
             ]
-            [ hd 2
-                [ dims <| styleMap toFloat <| levelStyle 2
-                , El.text " : The Distributed Idea Management System"
-                ]
-            , textBlock
-                [ El.text "This page serves two purposes. It will act as a landing page for all my projects in Cardano Catalyst Fund10, as well as being the first stage (a web-based interface) for my  "
-                , dims { size = 20.0, color = pal.white }
-                , El.text "  project."
-                ]
-            , hbar
-            , hd 3 [ El.text "My Fund10 Proposals:" ]
+            [ renderMd dimsMd
             , hbar
             , propCard malawi
             , propCard dao
             , propCard dreps
-            , propCard model.project
+            , Delay.payload model.project
+                |> Maybe.map propCard
+                |> Maybe.withDefault El.none
             , El.link
                 []
                 { url = "https://github.com/thistent/f10/"
                 , label =
                     el
                         [ Font.color pal.blue
-                        , Font.letterSpacing kerning
+                        , fontSpacing
                         ]
                     <|
                         El.text "[[ View source on GitHub ]]"
@@ -246,18 +457,23 @@ view model =
             ]
 
 
+fontSpacing : El.Attribute Msg
+fontSpacing =
+    El.batch
+        [ Font.letterSpacing kerning
+        , Font.wordSpacing <| 4 * kerning
+
+        --, Font.justify
+        ]
+
+
 textBlock : List (Element Msg) -> Element Msg
 textBlock ls =
     El.paragraph
-        [ Font.justify
-        , Font.letterSpacing kerning
+        [ fontSpacing
         , El.spacing 15
         ]
         ls
-
-
-type alias Style a =
-    { size : a, color : El.Color }
 
 
 styleMap : (a -> b) -> Style a -> Style b
@@ -285,7 +501,7 @@ hd lev ls =
     El.paragraph
         [ Font.size sty.size
         , Font.color sty.color
-        , Font.letterSpacing kerning
+        , fontSpacing
         , El.spacingXY 0 15
         ]
         ls
@@ -300,7 +516,7 @@ levelStyle lev =
 
         size : Int
         size =
-            17 + (7 - level) * 3
+            18 + (7 - level) * 4
     in
     case level of
         1 ->
@@ -348,7 +564,7 @@ propCard proj =
             [ El.width El.fill ]
             [ El.link
                 [ Font.color pal.blue
-                , Font.letterSpacing kerning
+                , fontSpacing
                 ]
                 { url = proj.link
                 , label = El.paragraph [] [ El.text "[[ See on IdeaScale ]]" ]
@@ -360,12 +576,12 @@ propCard proj =
               <|
                 El.text proj.ada
             ]
-        , El.column [ El.spacing 30 ]
+        , El.column [ El.spacing 40 ]
             [ hd 5 [ El.text "Problem:" ]
             , textBlock
                 [ El.text proj.problem ]
             ]
-        , El.column [ El.spacing 30 ]
+        , El.column [ El.spacing 40 ]
             [ hd 5 [ El.text "Solution:" ]
             , textBlock
                 [ El.text proj.solution ]
@@ -655,6 +871,20 @@ map2ColorFun f c1 c2 =
             c2 |> El.toRgb >> C.fromRgba
     in
     f cc1 cc2 |> C.toRgba >> El.fromRgb
+
+
+scrollStyle : El.Attribute Msg
+scrollStyle =
+    El.batch
+        [ style "overflow" "scroll"
+        , style "scrollbar-color" "red orange"
+        , style "scrollbar-width" "thin"
+        ]
+
+
+style : String -> String -> El.Attribute Msg
+style s t =
+    El.htmlAttribute <| Attr.style s t
 
 
 

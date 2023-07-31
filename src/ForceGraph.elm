@@ -15,19 +15,8 @@ import TypedSvg.Core as Tc exposing (Svg)
 import TypedSvg.Types as Tt
 
 
-type alias Xy =
-    { x : Float, y : Float }
 
-
-type alias Size a =
-    { width : a, height : a }
-
-
-type Msg
-    = DragStart NodeId Xy
-    | DragAt Xy
-    | DragEnd Xy
-    | Tick Time.Posix
+-- Types --
 
 
 type alias Model =
@@ -37,6 +26,13 @@ type alias Model =
     , simulation : Force.State NodeId
     , window : Size Float
     }
+
+
+type Msg
+    = DragStart NodeId Xy
+    | DragAt Xy
+    | DragEnd Xy
+    | Tick Time.Posix
 
 
 type alias Drag =
@@ -50,65 +46,59 @@ type alias Entity =
     Force.Entity NodeId { value : String }
 
 
-emptyEntity : NodeId -> String -> Entity
-emptyEntity id val =
-    Force.entity id val
+type alias Size a =
+    { width : a, height : a }
 
 
-initializeNode : NodeContext String () -> NodeContext Entity ()
-initializeNode ctx =
-    { node = { label = Force.entity ctx.node.id ctx.node.label, id = ctx.node.id }
-    , incoming = ctx.incoming
-    , outgoing = ctx.outgoing
-    }
+type alias Xy =
+    { x : Float, y : Float }
+
+
+
+-- Main --
+
+
+main : Program () Model Msg
+main =
+    Browser.element
+        { init = init
+        , update = \msg model -> ( update msg model, Cmd.none )
+        , subscriptions = subs
+        , view = view
+        }
+
+
+
+-- Initialization --
 
 
 init : () -> ( Model, Cmd Msg )
-init =
+init _ =
     let
         { width, height } =
             Size 900 550
 
         graph =
-            Graph.mapContexts initializeNode miserablesGraph
+            Graph.mapContexts initializeNode testGraph
 
         link { from, to } =
             ( from, to )
 
         forces =
-            [ Force.links <| List.map link <| Graph.edges graph
-            , Force.manyBody <| List.map .id <| Graph.nodes graph
+            [ Graph.edges graph
+                |> List.map link
+                |> Force.links
+            , Graph.nodes graph
+                |> List.map .id
+                |> Force.manyBody
             , Force.center (width / 2) (height / 2)
             ]
     in
-    ( Model graph (Force.simulation forces), Cmd.none )
+    ( Model (Xy 0 0) Nothing graph (Force.simulation forces) (Size 0 0), Cmd.none )
 
 
-updateNode : ( Float, Float ) -> NodeContext Entity () -> NodeContext Entity ()
-updateNode ( x, y ) nodeCtx =
-    let
-        nodeValue =
-            nodeCtx.node.label
-    in
-    updateContextWithValue nodeCtx { nodeValue | x = x, y = y }
 
-
-updateContextWithValue : NodeContext Entity () -> Entity -> NodeContext Entity ()
-updateContextWithValue nodeCtx value =
-    let
-        node =
-            nodeCtx.node
-    in
-    { nodeCtx | node = { node | label = value } }
-
-
-updateGraphWithList : Graph Entity () -> List Entity -> Graph Entity ()
-updateGraphWithList =
-    let
-        graphUpdater value =
-            Maybe.map (\ctx -> updateContextWithValue ctx value)
-    in
-    List.foldr (\node graph -> Graph.update node.id (graphUpdater node) graph)
+-- Update --
 
 
 update : Msg -> Model -> Model
@@ -117,50 +107,77 @@ update msg ({ drag, graph, simulation } as model) =
         Tick t ->
             let
                 ( newState, list ) =
-                    Force.tick simulation <| List.map .label <| Graph.nodes graph
+                    Graph.nodes graph
+                        |> List.map .label
+                        |> Force.tick simulation
             in
             case drag of
                 Nothing ->
-                    Model drag (updateGraphWithList graph list) newState
+                    Model
+                        (Xy 0 0)
+                        drag
+                        (updateGraphWithList graph list)
+                        newState
+                        (Size 0 0)
 
                 Just { current, index } ->
-                    Model drag
+                    Model (Xy 0 0)
+                        drag
                         (Graph.update index
-                            (Maybe.map (updateNode current))
+                            (updateNode current |> Maybe.map)
                             (updateGraphWithList graph list)
                         )
                         newState
+                        (Size 0 0)
 
-        DragStart index xy ->
-            Model (Just (Drag xy xy index)) graph simulation
+        DragStart index current ->
+            Model (Xy 0 0)
+                (Just (Drag current current index))
+                graph
+                simulation
+                (Size 0 0)
 
-        DragAt xy ->
+        DragAt current ->
             case drag of
                 Just { start, index } ->
-                    Model (Just (Drag start xy index))
-                        (Graph.update index (Maybe.map (updateNode xy)) graph)
+                    Model (Xy 0 0)
+                        (Just (Drag start current index))
+                        (Graph.update index
+                            (updateNode current |> Maybe.map)
+                            graph
+                        )
                         (Force.reheat simulation)
+                        (Size 0 0)
 
                 Nothing ->
-                    Model Nothing graph simulation
+                    Model (Xy 0 0) Nothing graph simulation (Size 0 0)
 
-        DragEnd xy ->
+        DragEnd current ->
             case drag of
                 Just { start, index } ->
-                    Model Nothing
-                        (Graph.update index (Maybe.map (updateNode xy)) graph)
+                    -- FIXME!
+                    Model (Xy 0 0)
+                        Nothing
+                        (Graph.update index
+                            (updateNode current |> Maybe.map)
+                            graph
+                        )
                         simulation
+                        (Size 0 0)
 
                 Nothing ->
-                    Model Nothing graph simulation
+                    -- FIXME!
+                    Model (Xy 0 0) Nothing graph simulation (Size 0 0)
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
+
+-- Subscriptions --
+
+
+subs : Model -> Sub Msg
+subs model =
     case model.drag of
         Nothing ->
-            -- This allows us to save resources, as if the simulation is done, there is no point in subscribing
-            -- to the rAF.
             if Force.isCompleted model.simulation then
                 Sub.none
 
@@ -169,29 +186,101 @@ subscriptions model =
 
         Just _ ->
             Sub.batch
-                [ Browser.Events.onMouseMove (Decode.map (.clientPos >> DragAt) Mouse.eventDecoder)
-                , Browser.Events.onMouseUp (Decode.map (.clientPos >> DragEnd) Mouse.eventDecoder)
+                [ Browser.Events.onMouseMove
+                    (Decode.map
+                        (.clientPos >> tupleToXy >> DragAt)
+                        Mouse.eventDecoder
+                    )
+                , Browser.Events.onMouseUp
+                    (Decode.map
+                        (.clientPos >> tupleToXy >> DragEnd)
+                        Mouse.eventDecoder
+                    )
                 , Browser.Events.onAnimationFrame Tick
                 ]
 
 
+xyToTuple : Xy -> ( Float, Float )
+xyToTuple p =
+    ( p.x, p.y )
+
+
+tupleToXy : ( Float, Float ) -> Xy
+tupleToXy ( x, y ) =
+    Xy x y
+
+
+emptyEntity : NodeId -> String -> Entity
+emptyEntity id val =
+    Force.entity id val
+
+
+initializeNode : NodeContext String () -> NodeContext Entity ()
+initializeNode ctx =
+    { node =
+        { label = Force.entity ctx.node.id ctx.node.label
+        , id = ctx.node.id
+        }
+    , incoming = ctx.incoming
+    , outgoing = ctx.outgoing
+    }
+
+
+updateNode : Xy -> NodeContext Entity () -> NodeContext Entity ()
+updateNode pos nodeCtx =
+    let
+        nodeValue : Entity
+        nodeValue =
+            nodeCtx.node.label
+    in
+    updateContext
+        { nodeValue | x = pos.x, y = pos.y }
+        nodeCtx
+
+
+updateContext :
+    Entity
+    -> NodeContext Entity ()
+    -> NodeContext Entity ()
+updateContext value ({ node } as nodeCtx) =
+    { nodeCtx | node = { node | label = value } }
+
+
+updateGraphWithList : Graph Entity () -> List Entity -> Graph Entity ()
+updateGraphWithList =
+    let
+        updateEntity : Entity -> Graph Entity () -> Graph Entity ()
+        updateEntity node graph =
+            Graph.update node.id
+                (updateContext node |> Maybe.map)
+                graph
+    in
+    List.foldr updateEntity
+
+
 onMouseDown : NodeId -> Tc.Attribute Msg
 onMouseDown index =
-    Mouse.onDown (.clientPos >> DragStart index)
+    Mouse.onDown (.clientPos >> tupleToXy >> DragStart index)
 
 
 linkElement : Graph Entity () -> Edge () -> Svg msg
 linkElement graph edge =
     let
         source =
-            Maybe.withDefault (Force.entity 0 "") <| Maybe.map (.node >> .label) <| Graph.get edge.from graph
+            Graph.get edge.from graph
+                |> Maybe.map (.node >> .label)
+                |> Maybe.withDefault (Force.entity 0 "")
 
         target =
-            Maybe.withDefault (Force.entity 0 "") <| Maybe.map (.node >> .label) <| Graph.get edge.to graph
+            Graph.get edge.to graph
+                |> Maybe.map (.node >> .label)
+                |> Maybe.withDefault (Force.entity 0 "")
     in
     Ts.line
         [ Tpx.strokeWidth 1
-        , Ta.stroke <| Tt.Paint <| Color.rgb255 0x33 0x33 0x33
+        , Color.rgb255 0x33 0x33 0x33
+            |> Tt.Paint
+            |> Ta.stroke
         , Tpx.x1 source.x
         , Tpx.y1 source.y
         , Tpx.x2 target.x
@@ -204,8 +293,12 @@ nodeElement : { a | id : NodeId, label : { b | x : Float, y : Float, value : Str
 nodeElement node =
     Ts.circle
         [ Tpx.r 2.5
-        , Ta.fill <| Tt.Paint <| Color.rgb255 0xFF 0x00 0x00
-        , Ta.stroke <| Tt.Paint <| Color.rgba 0 0 0 0
+        , Color.rgb255 0xFF 0x00 0x00
+            |> Tt.Paint
+            |> Ta.fill
+        , Color.rgba 0 0 0 0
+            |> Tt.Paint
+            |> Ta.stroke
         , Tpx.strokeWidth 7
         , onMouseDown node.id
         , Tpx.cx node.label.x
@@ -229,7 +322,9 @@ view model =
             , Tpx.y 0
             , Tpx.width w
             , Tpx.height h
-            , Ta.fill <| Tt.Paint <| Color.rgb255 0x11 0x11 0x11
+            , Color.rgb255 0x11 0x11 0x11
+                |> Tt.Paint
+                |> Ta.fill
             ]
             []
         , Graph.edges model.graph
@@ -241,18 +336,8 @@ view model =
         ]
 
 
-main : Program () Model Msg
-main =
-    Browser.element
-        { init = init
-        , view = view
-        , update = \msg model -> ( update msg model, Cmd.none )
-        , subscriptions = subscriptions
-        }
-
-
-miserablesGraph : Graph String ()
-miserablesGraph =
+testGraph : Graph String ()
+testGraph =
     Graph.fromNodeLabelsAndEdgePairs
         [ "Dims"
         , "Real DAOs"

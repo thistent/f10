@@ -1,94 +1,100 @@
-module Delay exposing (Delay, dec, orig, ready, reset, switch, timer, update, wait)
+module Delay exposing (Delay, Timer, forceReady, payload, reset, switch, tick, timer, update, wait)
 
 
 type Delay a
-    = Wait Float Float (Maybe a)
+    = Wait Timer (Maybe a)
     | Ready Float a
+
+
+type alias Timer =
+    { current : Float
+    , original : Float
+    }
 
 
 wait : Float -> Maybe a -> Delay a
 wait time content =
-    Wait time time content
+    Wait (Timer time time) content
 
 
-ready : Delay a -> a -> Delay a
-ready delay content =
+payload : Delay a -> Maybe a
+payload delay =
     case delay of
-        Wait o _ _ ->
-            Ready o content
+        Wait _ mc ->
+            mc
 
-        Ready o _ ->
-            Ready o content
+        Ready _ c ->
+            Just c
 
 
-dec : Float -> Delay a -> Delay a
-dec delta delay =
+forceReady : Delay a -> a -> Delay a
+forceReady delay content =
     case delay of
-        Wait o t content ->
-            let
-                newTime =
-                    t - delta
-            in
-            if newTime > 0 then
-                Wait o newTime content
+        Wait tmr _ ->
+            Ready tmr.original content
 
-            else
-                case content of
-                    Just c ->
-                        Ready o c
-
-                    Nothing ->
-                        Wait o 0 Nothing
-
-        Ready o c ->
-            Ready o c
-
-
-switch : a -> a -> Delay b -> a
-switch notReadyState readyState delay =
-    case delay of
-        Ready _ _ ->
-            readyState
-
-        _ ->
-            notReadyState
-
-
-timer : Delay b -> Maybe Float
-timer delay =
-    case delay of
-        Wait _ time _ ->
-            Just time
-
-        Ready _ _ ->
-            Nothing
-
-
-orig : Delay b -> Float
-orig delay =
-    case delay of
-        Wait o _ _ ->
-            o
-
-        Ready o _ ->
-            o
-
-
-reset : Delay b -> Delay b
-reset delay =
-    case delay of
-        Wait o t mc ->
-            Wait o o mc
-
-        Ready o c ->
-            Wait o o (Just c)
+        Ready orig _ ->
+            Ready orig content
 
 
 update : Delay b -> b -> Delay b
 update delay content =
     case delay of
-        Wait o t _ ->
-            Wait o t (Just content)
+        Wait tmr _ ->
+            Wait tmr (Just content)
 
-        Ready o _ ->
-            Ready o content
+        Ready orig _ ->
+            Ready orig content
+
+
+tick : Float -> Delay a -> Delay a
+tick delta delay =
+    case delay of
+        Wait tmr content ->
+            let
+                newTime =
+                    tmr.current - delta
+            in
+            if newTime > 0 then
+                Wait (Timer newTime tmr.original) content
+
+            else
+                case content of
+                    Just c ->
+                        Ready tmr.original c
+
+                    Nothing ->
+                        Wait (Timer tmr.original 0) Nothing
+
+        Ready orig p ->
+            Ready orig p
+
+
+switch : (Timer -> a) -> (b -> a) -> Delay b -> a
+switch notReadyState readyState delay =
+    case delay of
+        Wait tmr _ ->
+            notReadyState tmr
+
+        Ready _ c ->
+            readyState c
+
+
+timer : Delay b -> Maybe Timer
+timer delay =
+    case delay of
+        Wait tmr _ ->
+            Just tmr
+
+        Ready _ _ ->
+            Nothing
+
+
+reset : Delay b -> Delay b
+reset delay =
+    case delay of
+        Wait tmr mc ->
+            Wait (Timer tmr.original tmr.original) mc
+
+        Ready orig c ->
+            Wait (Timer orig orig) (Just c)
